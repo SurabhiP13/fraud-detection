@@ -45,3 +45,9 @@ Thumbs.db
 dist/
 build/
 *.egg-info/
+
+# Environment and secrets
+.env
+*.pem
+*.key
+secrets/

@@ -25,9 +25,10 @@ spec:
         workingDir: /app
       volumes:
       - name: frontend-files
-        hostPath:
-          path: /path/to/frontend
-          type: Directory
+        configMap:
+          name: frontend-config
+          # In production, use ConfigMap to store frontend files
+          # Create with: kubectl create configmap frontend-config --from-file=frontend/
 ---
 apiVersion: v1
 kind: Service

@@ -7,16 +7,15 @@ from .models import Base
 import os
 
 # Database URL from environment or default to SQLite
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://fraud_user:fraud_pass@localhost:5432/fraud_detection"
-)
+# In production, always set DATABASE_URL environment variable
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Fallback to SQLite for local development
-if not os.getenv("DATABASE_URL"):
+# Use SQLite for local development if DATABASE_URL not set
+if not DATABASE_URL:
     DATABASE_URL = "sqlite:///./fraud_detection.db"
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
+    # PostgreSQL or other database
     engine = create_engine(DATABASE_URL)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
