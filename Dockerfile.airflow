@@ -1,0 +1,23 @@
+# Airflow Dockerfile
+FROM apache/airflow:2.7.3-python3.11
+
+USER root
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+USER airflow
+
+# Install additional Python packages
+COPY requirements.txt /tmp/
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Copy DAGs
+COPY airflow/dags /opt/airflow/dags/
+
+# Set environment variables
+ENV AIRFLOW__CORE__LOAD_EXAMPLES=False
+ENV AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags

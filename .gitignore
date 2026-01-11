@@ -1,0 +1,53 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Airflow
+airflow/airflow.db
+airflow/logs/
+airflow/*.pid
+airflow/webserver_config.py
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# ML Models
+ml_model/*.joblib
+
+# Docker
+.dockerignore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.log
+*.tmp
+/tmp/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Environment and secrets
+.env
+*.pem
+*.key
+secrets/

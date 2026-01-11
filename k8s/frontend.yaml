@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: fraud-detection
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: python:3.11-slim
+        command: ["python", "-m", "http.server", "3000"]
+        ports:
+        - containerPort: 3000
+        volumeMounts:
+        - name: frontend-files
+          mountPath: /app
+        workingDir: /app
+      volumes:
+      - name: frontend-files
+        configMap:
+          name: frontend-config
+          # In production, use ConfigMap to store frontend files
+          # Create with: kubectl create configmap frontend-config --from-file=frontend/
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: fraud-detection
+spec:
+  selector:
+    app: frontend
+  ports:
+  - port: 3000
+    targetPort: 3000
+  type: LoadBalancer
