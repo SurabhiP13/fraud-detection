@@ -3,17 +3,25 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.egg
+*.egg-info/
+.Python
 
 # Virtual environments
 venv/
 env/
 ENV/
+.venv
+end-to-end/
 
 # IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+.sublime-project
+.sublime-workspace
 
 # Airflow
 airflow/airflow.db
@@ -28,26 +36,46 @@ airflow/webserver_config.py
 
 # ML Models
 ml_model/*.joblib
+models/*.joblib
 
 # Docker
 .dockerignore
+docker-compose.override.yml
 
 # OS
 .DS_Store
 Thumbs.db
+.AppleDouble
+.LSOverride
 
 # Temporary files
 *.log
 *.tmp
 /tmp/
+*.bak
+*.temp
 
 # Build artifacts
 dist/
 build/
 *.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Environment and secrets
 .env
+.env.local
+.env.*.local
 *.pem
 *.key
 secrets/
+local_config.py
+
+# IDE server
+.vscode-server/
+
+# Node (if applicable)
+node_modules/
+npm-debug.log
+yarn-error.log
