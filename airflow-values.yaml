@@ -7,13 +7,7 @@ airflow:
     pullPolicy: IfNotPresent
 
 postgresql:
-  enabled: true
-  auth:
-    existingSecret: airflow-postgresql
-    secretKeys:
-      adminPasswordKey: postgres-password
-      userPasswordKey: postgres-password
-
+  enabled: false
 
 redis:
   enabled: false
@@ -25,3 +19,13 @@ webserver:
 logs:
   persistence:
     enabled: false
+
+data:
+  metadataConnection:
+    user: airflow
+    pass: airflow123
+    protocol: postgresql
+    host: postgres-postgresql
+    port: 5432
+    db: airflow
+    sslmode: disable

@@ -1,0 +1,42 @@
+replicaCount: 1
+
+image:
+  repository: burakince/mlflow
+  pullPolicy: IfNotPresent
+  tag: ""
+
+service:
+  enabled: true
+  type: ClusterIP
+  port: 80
+  containerPort: 5000
+
+log:
+  enabled: true
+  level: info
+
+telemetry:
+  enabled: false
+
+backendStore:
+  databaseMigration: false
+  databaseConnectionCheck: false
+  
+  postgres:
+    enabled: true
+    host: postgres-postgresql
+    port: 5432
+    database: mlflow
+    user: airflow
+    password: airflow123
+    driver: ""
+
+artifactRoot:
+  proxiedArtifactStorage: false
+  defaultArtifactRoot: /mlflow/artifacts
+  defaultArtifactsDestination: /mlflow/artifacts
+
+auth:
+  enabled: false
+
+resources: {}
