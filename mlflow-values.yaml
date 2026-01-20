@@ -1,42 +1,87 @@
-replicaCount: 1
+# replicaCount: 1
 
-image:
-  repository: burakince/mlflow
-  pullPolicy: IfNotPresent
-  tag: ""
+# postgresql:
+#   enabled: false
 
-service:
-  enabled: true
-  type: ClusterIP
-  port: 80
-  containerPort: 5000
+# image:
+#   repository: burakince/mlflow
+#   pullPolicy: IfNotPresent
+#   tag: ""
 
-log:
-  enabled: true
-  level: info
+# service:
+#   enabled: true
+#   type: ClusterIP
+#   port: 80
+#   containerPort: 5000
 
-telemetry:
+# log:
+#   enabled: true
+#   level: info
+
+# telemetry:
+#   enabled: false
+
+# backendStore:
+#   databaseMigration: true
+#   database:
+#     host: postgres-postgresql.airflow.svc.cluster.local
+#     port: 5432
+#     database: mlflow
+#     user: mlflow
+#     password: cG9zdGdyZXMxMjM=
+  
+
+
+# # artifactRoot:
+# #   proxiedArtifactStorage: false
+# #   defaultArtifactRoot: /mlflow/artifacts
+# #   defaultArtifactsDestination: /mlflow/artifacts
+
+# auth:
+#   enabled: false
+
+# resources: {}
+
+# #persistent Volume Claim for MLflow artifacts
+# extraVolumes:
+#   - name: pipeline-data
+#     persistentVolumeClaim:
+#       claimName: pipeline-data
+
+# extraVolumeMounts:
+#   - name: pipeline-data
+#     mountPath: /data
+    
+# extraArgs:
+#   - --default-artifact-root=file:/data/mlflow_artifacts
+
+
+postgresql:
+  enabled: false
+minio:
   enabled: false
 
+tracking:
+  auth:
+    enabled: false
+    
 backendStore:
-  databaseMigration: false
-  databaseConnectionCheck: false
-  
-  postgres:
-    enabled: true
-    host: postgres-postgresql
+  databaseMigration: true
+  database:
+    host: postgres-postgresql.airflow.svc.cluster.local
     port: 5432
     database: mlflow
-    user: airflow
-    password: airflow123
-    driver: ""
+    user: mlflow
+    password: cG9zdGdyZXMxMjM=
 
-artifactRoot:
-  proxiedArtifactStorage: false
-  defaultArtifactRoot: /mlflow/artifacts
-  defaultArtifactsDestination: /mlflow/artifacts
+extraVolumes:
+  - name: pipeline-data
+    persistentVolumeClaim:
+      claimName: pipeline-data
 
-auth:
-  enabled: false
+extraVolumeMounts:
+  - name: pipeline-data
+    mountPath: /data
 
-resources: {}
+extraArgs:
+  - --default-artifact-root=file:/data/mlflow_artifacts

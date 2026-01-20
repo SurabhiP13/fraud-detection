@@ -29,3 +29,49 @@ data:
     port: 5432
     db: airflow
     sslmode: disable
+
+# Persistent Volume Claim for pipeline data
+scheduler:
+  extraVolumes:
+    - name: pipeline-data
+      persistentVolumeClaim:
+        claimName: pipeline-data
+  extraVolumeMounts:
+    - name: pipeline-data
+      mountPath: /data
+
+webserver:
+  extraVolumes:
+    - name: pipeline-data
+      persistentVolumeClaim:
+        claimName: pipeline-data
+  extraVolumeMounts:
+    - name: pipeline-data
+      mountPath: /data
+
+workers:
+  extraVolumes:
+    - name: pipeline-data
+      persistentVolumeClaim:
+        claimName: pipeline-data
+  extraVolumeMounts:
+    - name: pipeline-data
+      mountPath: /data
+
+triggerer:
+  extraVolumes:
+    - name: pipeline-data
+      persistentVolumeClaim:
+        claimName: pipeline-data
+  extraVolumeMounts:
+    - name: pipeline-data
+      mountPath: /data
+
+dagProcessor:
+  extraVolumes:
+    - name: pipeline-data
+      persistentVolumeClaim:
+        claimName: pipeline-data
+  extraVolumeMounts:
+    - name: pipeline-data
+      mountPath: /data
