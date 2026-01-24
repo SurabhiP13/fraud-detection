@@ -1,0 +1,65 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database (used by backend + airflow) — SINGLE DB ONLY
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fraud_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fraud_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-fraud_detection}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fraud_user} -d ${POSTGRES_DB:-fraud_detection}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-fraud_user}:${POSTGRES_PASSWORD:-fraud_pass}@postgres:5432/${POSTGRES_DB:-fraud_detection}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app/backend
+      - ./ml_model:/app/ml_model
+
+  # Frontend (simple static server)
+  frontend:
+    image: python:3.11-slim
+    working_dir: /app
+    command: python -m http.server 3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+
+  # Airflow init (runs once)
+  airflow-init:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    entrypoint: /bin/bash
+    command: |
+      set -e
+      airflow db migrate
+      airflow users create \
+        --username "${AIRFLOW_ADMIN_USER:-airflow}" \
+        --password "${AIRFLOW_ADMIN_PASSWORD:-airflow}" \
+        --firstname Air \
+        --lastname Flow \
+        --role Admin \
+        --email "${AIRFLOW_ADMIN_EMAIL:-airflow@example.com}" || true
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__COR
