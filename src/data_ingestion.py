@@ -5,7 +5,7 @@ import pandas as pd
 import logging
 from pathlib import Path
 from typing import Tuple, Dict, Optional
-from src.utils import load_config
+from utils import load_config
 import json
 import hashlib
 from datetime import datetime, timezone

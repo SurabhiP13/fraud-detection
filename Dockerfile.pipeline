@@ -1,0 +1,25 @@
+FROM python:3.10-slim
+
+WORKDIR /opt/airflow
+
+# Install system dependencies for LightGBM and other packages
+RUN apt-get update && apt-get install -y \
+    libgomp1 \
+    build-essential \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python packages
+COPY requirements-airflow.txt /tmp/
+RUN pip install --no-cache-dir -r /tmp/requirements-airflow.txt
+
+# Copy source code and raw data
+COPY src/ /opt/airflow/src/
+COPY scripts/ /opt/airflow/scripts/
+COPY data/unzipped/ /opt/airflow/raw_data/
+COPY config.yaml /opt/airflow/config.yaml
+# Make scripts executable
+RUN chmod +x /opt/airflow/scripts/*.py
+
+# Default command (will be overridden by task)
+CMD ["python", "--version"]

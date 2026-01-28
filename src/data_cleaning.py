@@ -14,7 +14,7 @@ from typing import Dict, List, Tuple, Optional
 import numpy as np
 import pandas as pd
 
-from src.utils import clean_inf_nan, load_config
+from utils import clean_inf_nan, load_config
 
 logger = logging.getLogger(__name__)
 

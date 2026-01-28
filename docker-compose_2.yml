@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15
@@ -17,8 +15,7 @@ services:
       interval: 10s
       retries: 5
       start_period: 5s
-    networks:
-      - fraud-detection
+      
 
   airflow-webserver:
     build:
@@ -38,32 +35,27 @@ services:
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'True'
       AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       AIRFLOW_HOME: /opt/airflow
-      MLFLOW_TRACKING_URI: http://mlflow:5000
-      AIRFLOW__LOGGING__RETRIEVE_LOGS_FROM_REMOTE_LOGGING: 'False'
-      AIRFLOW__WEBSERVER__SECRET_KEY: 'fraud-detection-secret-key-2026'
     volumes:
       - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
       - ./src:/opt/airflow/src
-      - ./scripts:/opt/airflow/scripts
       - ./config.yaml:/opt/airflow/config.yaml
-      - fraud-detection-data:/opt/airflow/data
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data:/opt/airflow/data
+      - ./requirements-airflow.txt:/opt/airflow/requirements-airflow.txt
     ports:
       - "8080:8080"
-    networks:
-      - fraud-detection
     command: >
-      bash -c "
-        airflow db init &&
-        airflow users create --username airflow --firstname Airflow --lastname User --role Admin --email airflow@example.com --password airflow 2>/dev/null || true &&
-        airflow webserver
-      "
+      bash -c "sleep 10 &&
+               airflow db init &&
+               airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com || true &&
+               airflow webserver"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 40s
+      start_period: 30s
 
   airflow-scheduler:
     build:
@@ -71,6 +63,8 @@ services:
       dockerfile: Dockerfile
     container_name: airflow-scheduler
     depends_on:
+      postgres:
+        condition: service_healthy
       airflow-webserver:
         condition: service_healthy
     mem_limit: 4g
@@ -82,18 +76,14 @@ services:
       AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: 'False'
       AIRFLOW_HOME: /opt/airflow
-      MLFLOW_TRACKING_URI: http://mlflow:5000
-      AIRFLOW__LOGGING__RETRIEVE_LOGS_FROM_REMOTE_LOGGING: 'False'
-      AIRFLOW__WEBSERVER__SECRET_KEY: 'fraud-detection-secret-key-2026'
     volumes:
       - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
       - ./src:/opt/airflow/src
-      - ./scripts:/opt/airflow/scripts
       - ./config.yaml:/opt/airflow/config.yaml
-      - fraud-detection-data:/opt/airflow/data
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - fraud-detection
+      - ./data:/opt/airflow/data
+      - ./requirements-airflow.txt:/opt/airflow/requirements-airflow.txt
     command: bash -c "sleep 30 && airflow scheduler"
 
   mlflow:
@@ -104,20 +94,13 @@ services:
       - "5000:5000"
     volumes:
       - mlruns-volume:/mlruns
-    networks:
-      - fraud-detection
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000').read()"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 5
       start_period: 60s
 
 volumes:
   postgres-db-volume:
   mlruns-volume:
-  fraud-detection-data:
-
-networks:
-  fraud-detection:
-    driver: bridge

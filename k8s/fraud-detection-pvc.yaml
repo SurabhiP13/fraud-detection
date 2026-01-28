@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: fraud-detection-pvc
+  namespace: fraud-detection
+spec:
+  accessModes:
+    - ReadWriteMany  # Multiple pods can read/write
+  resources:
+    requests:
+      storage: 10Gi  # Adjust based on your data size
+  storageClassName: standard  # Update with your storage class
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fraud-detection-config
+  namespace: fraud-detection
+data:
+  config.yaml: |
+    # Add your config.yaml content here
+    # This will be mounted into the containers
+    # You can update this configmap with your actual config

@@ -14,3 +14,7 @@ USER airflow
 # Copy and install Python requirements
 COPY requirements-airflow.txt /tmp/
 RUN pip install --no-cache-dir -r /tmp/requirements-airflow.txt
+# Copy source code and scripts
+COPY --chown=airflow:airflow src /opt/airflow/src
+COPY --chown=airflow:airflow scripts /opt/airflow/scripts
+COPY --chown=airflow:airflow config.yaml /opt/airflow/config.yaml

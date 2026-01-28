@@ -1,0 +1,141 @@
+# Fraud Detection Pipeline Configuration
+
+# Data paths
+data:
+  raw_data_dir: "data/unzipped"
+  processed_data_dir: "data/processed"
+  #Initial ingestion from IEEE Data
+  train_transaction: "data/unzipped/train_transaction.csv"
+  train_identity: "data/unzipped/train_identity.csv"
+  test_transaction: "data/unzipped/test_transaction.csv"
+  test_identity: "data/unzipped/test_identity.csv"
+  #===========================
+  output_dir: "output"
+  models_dir: "models"
+  ingested_subdir: "ingestion"
+  train_merged_name: "train_merged.csv"
+  test_merged_name: "test_merged.csv"
+
+  cleaning_subdir: "cleaning"
+  train_cleaned_name: "train_cleaned.csv"
+  test_cleaned_name: "test_cleaned.csv"
+  
+  feature_engineering_subdir: "feature_engineering"
+  X_train_name: "X_train.csv"
+  y_train_name: "y_train.csv"
+  X_test_name: "X_test.csv"
+  test_ids_name: "test_ids.csv"
+  
+  model_training_subdir: "model_training"
+
+
+
+# Data cleaning parameters
+data_cleaning:
+  null_threshold: 0.9  # Drop columns with >90% null values
+  top_value_threshold: 0.9  # Drop columns where top value appears >90% of the time
+  reduce_memory: true
+  
+# Feature engineering parameters
+feature_engineering:
+  # Categorical columns for label encoding
+  categorical_columns:
+    - id_12
+    - id_13
+    - id_14
+    - id_15
+    - id_16
+    - id_17
+    - id_18
+    - id_19
+    - id_20
+    - id_21
+    - id_22
+    - id_23
+    - id_24
+    - id_25
+    - id_26
+    - id_27
+    - id_28
+    - id_29
+    - id_30
+    - id_31
+    - id_32
+    - id_33
+    - id_34
+    - id_35
+    - id_36
+    - id_37
+    - id_38
+    - DeviceType
+    - DeviceInfo
+    - ProductCD
+    - card4
+    - card6
+    - M4
+    - P_emaildomain
+    - R_emaildomain
+    - card1
+    - card2
+    - card3
+    - card5
+    - addr1
+    - addr2
+    - M1
+    - M2
+    - M3
+    - M5
+    - M6
+    - M7
+    - M8
+    - M9
+  
+# Email domain feature engineering
+  email_features:
+    create_domain_splits: true
+    max_splits: 3
+
+# Model training parameters
+model:
+  type: "lightgbm"  # Options: lightgbm, xgboost, catboost
+  # n_folds: 3
+  random_state: 42
+  
+  # LightGBM specific parameters
+  lightgbm:
+    n_estimators: 500
+    learning_rate: 0.01
+    num_leaves: 256
+    colsample_bytree: 0.5
+    subsample: 0.9
+    max_depth: -1
+    reg_alpha: 0.1
+    reg_lambda: 0.1
+    min_split_gain: 0.01
+    min_child_weight: 2
+    silent: -1
+    verbose: -1
+    n_jobs: 4
+    
+  # Early stopping
+  early_stopping_rounds: 100
+  verbose_eval: 100
+
+# Cross-validation strategy
+cross_validation:
+  strategy: "kfold"  # Options: kfold, stratified, group, timeseries
+  n_splits: 2
+  shuffle: true
+  random_state: 42
+
+# Output settings
+output:
+  save_models: true
+  save_predictions: true
+  save_feature_importance: true
+  model_format: "pickle"  # Options: pickle, joblib
+
+# MLflow settings
+mlflow:
+  tracking_uri: ${MLFLOW_TRACKING_URI:-http://localhost:5000}
+  experiment_name: "fraud_detection"

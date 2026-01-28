@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
-from src.utils import load_config
+from utils import load_config
 
 logger = logging.getLogger(__name__)
 
