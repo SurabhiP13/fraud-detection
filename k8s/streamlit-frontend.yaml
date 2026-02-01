@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streamlit-frontend
+  namespace: airflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: streamlit-frontend
+  template:
+    metadata:
+      labels:
+        app: streamlit-frontend
+    spec:
+      containers:
+      - name: streamlit
+        image: fraud-detection-frontend:latest
+        imagePullPolicy: Never  # Use locally built image
+        ports:
+        - containerPort: 8501  # Streamlit default port
+        env:
+        - name: MLFLOW_TRACKING_URI
+          value: http://mlflow-tracking:5000  # Connect to MLflow in same namespace
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: streamlit-frontend
+  namespace: airflow
+spec:
+  selector:
+    app: streamlit-frontend
+  ports:
+  - port: 8501
+    targetPort: 8501
+    nodePort: 30501  # Access via minikube-ip:30501
+  type: NodePort  # Use NodePort for Minikube (LoadBalancer won't work locally)

@@ -31,7 +31,7 @@ def _sha256_file(path: Path) -> str:
 
 
 def _sha256_text(s: str) -> str:
-    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+    su
 
 class ModelTrainer:
     """Class for training and evaluating fraud detection models."""
