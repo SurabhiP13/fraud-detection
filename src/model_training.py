@@ -13,8 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional
 import lightgbm as lgb
-import mlflow
-import mlflow.lightgbm
+# import mlflow  # MLflow runs as separate service
+# import mlflow.lightgbm
 from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.metrics import roc_auc_score
 from utils import load_config
@@ -49,11 +49,17 @@ class ModelTrainer:
         self.data_config = config['data']
         self.models = []
         
-        # Set up MLflow tracking
-        # First try environment variable, then config, then default
-        mlflow_uri = os.getenv('MLFLOW_TRACKING_URI') or config.get('mlflow', {}).get('tracking_uri', 'file:./mlruns')
-        mlflow.set_tracking_uri(mlflow_uri)
-        logger.info(f"MLflow tracking URI set to: {mlflow_uri}")
+        # MLflow setup (optional - will connect to external service if available)
+        self.mlflow_available = False
+        try:
+            import mlflow
+            mlflow_uri = os.getenv('MLFLOW_TRACKING_URI') or config.get('mlflow', {}).get('tracking_uri')
+            if mlflow_uri:
+                mlflow.set_tracking_uri(mlflow_uri)
+                self.mlflow_available = True
+                logger.info(f"MLflow tracking URI set to: {mlflow_uri}")
+        except (ImportError, Exception) as e:
+            logger.warning(f"MLflow not available: {e}. Proceeding without experiment tracking.")
         
     def get_fold_strategy(self):
         """
@@ -93,91 +99,118 @@ class ModelTrainer:
         
         # Get model parameters
         lgb_params = self.model_config['lightgbm'].copy()
-        # Use n_splits from cross_validation config (the actual number of folds)
         n_folds = self.cv_config['n_splits']
         
-        # Start MLflow run
-        with mlflow.start_run():
-            # Log parameters
-            mlflow.log_params({
-                'model_type': 'lightgbm',
-                'n_folds': n_folds,
-                'cv_strategy': self.cv_config['strategy'],
-                **lgb_params
-            })
-            
-            # Prepare results storage
-            oof_predictions = np.zeros(len(X_train))
-            test_predictions = np.zeros(len(X_test))
-            fold_scores = []
-            
-            # Get fold strategy
-            folds = self.get_fold_strategy()
-            
-            # Cross-validation loop
-            for fold_n, (train_idx, valid_idx) in enumerate(folds.split(X_train, y_train)):
-                logger.info(f"Training fold {fold_n + 1}/{n_folds}...")
+        # Try to connect to MLflow if available
+        mlflow_available = False
+        mlflow_run = None
+        try:
+            import mlflow
+            import mlflow.lightgbm
+            mlflow_uri = os.getenv('MLFLOW_TRACKING_URI') or self.config.get('mlflow', {}).get('tracking_uri')
+            logger.info(f"MLflow URI from env: {os.getenv('MLFLOW_TRACKING_URI')}")
+            logger.info(f"MLflow URI from config: {self.config.get('mlflow', {}).get('tracking_uri')}")
+            logger.info(f"Using MLflow URI: {mlflow_uri}")
+            if mlflow_uri:
+                mlflow.set_tracking_uri(mlflow_uri)
+                mlflow_run = mlflow.start_run()
+                mlflow_available = True
+                logger.info(f"✓ Connected to MLflow at {mlflow_uri}")
                 
-                # Split data
-                X_tr, X_val = X_train.iloc[train_idx], X_train.iloc[valid_idx]
-                y_tr, y_val = y_train.iloc[train_idx], y_train.iloc[valid_idx]
-                
-                # Initialize model
-                model = lgb.LGBMClassifier(**lgb_params, random_state=self.model_config['random_state'])
-                
-                # Train model
-                model.fit(
-                    X_tr, y_tr,
-                    eval_set=[(X_tr, y_tr), (X_val, y_val)],
-                    eval_metric='auc',
-                    callbacks=[
-                        lgb.early_stopping(stopping_rounds=self.model_config['early_stopping_rounds']),
-                        lgb.log_evaluation(period=self.model_config['verbose_eval'])
-                    ]
-                )
-                
-                # Get predictions
-                oof_predictions[valid_idx] = model.predict_proba(X_val)[:, 1]
-                test_predictions += model.predict_proba(X_test)[:, 1] / n_folds
-                
-                # Calculate fold score
-                fold_score = roc_auc_score(y_val, oof_predictions[valid_idx])
-                fold_scores.append(fold_score)
-                logger.info(f"Fold {fold_n + 1} ROC AUC: {fold_score:.6f}")
-                
-                # Log fold metric
-                mlflow.log_metric(f"fold_{fold_n + 1}_roc_auc", fold_score)
-                
-                # Store model
-                self.models.append(model)
+                # Log parameters
+                mlflow.log_params({
+                    'model_type': 'lightgbm',
+                    'n_folds': n_folds,
+                    'cv_strategy': self.cv_config['strategy'],
+                    **lgb_params
+                })
+        except (ImportError, Exception) as e:
+            logger.error(f"✗ MLflow connection failed: {type(e).__name__}: {e}", exc_info=True)
+        
+        # Prepare results storage
+        oof_predictions = np.zeros(len(X_train))
+        test_predictions = np.zeros(len(X_test))
+        fold_scores = []
+        
+        # Get fold strategy
+        folds = self.get_fold_strategy()
+        
+        # Cross-validation loop
+        for fold_n, (train_idx, valid_idx) in enumerate(folds.split(X_train, y_train)):
+            logger.info(f"Training fold {fold_n + 1}/{n_folds}...")
             
-            # Calculate overall score
-            overall_score = roc_auc_score(y_train, oof_predictions)
-            mean_fold_score = np.mean(fold_scores)
-            std_fold_score = np.std(fold_scores)
+            # Split data
+            X_tr, X_val = X_train.iloc[train_idx], X_train.iloc[valid_idx]
+            y_tr, y_val = y_train.iloc[train_idx], y_train.iloc[valid_idx]
             
-            logger.info(f"Overall ROC AUC: {overall_score:.6f}")
-            logger.info(f"Mean Fold ROC AUC: {mean_fold_score:.6f} ± {std_fold_score:.6f}")
+            # Initialize model
+            model = lgb.LGBMClassifier(**lgb_params, random_state=self.model_config['random_state'])
             
-            # Log overall metrics
-            mlflow.log_metrics({
-                'overall_roc_auc': overall_score,
-                'mean_fold_roc_auc': mean_fold_score,
-                'std_fold_roc_auc': std_fold_score
-            })
-            
-            # Log the best model (last fold as representative) and register it
-            model_info = mlflow.lightgbm.log_model(
-                self.models[-1],
-                "model",
-                registered_model_name="fraud_detection_lgbm"
+            # Train model
+            model.fit(
+                X_tr, y_tr,
+                eval_set=[(X_tr, y_tr), (X_val, y_val)],
+                eval_metric='auc',
+                callbacks=[
+                    lgb.early_stopping(stopping_rounds=self.model_config['early_stopping_rounds']),
+                    lgb.log_evaluation(period=self.model_config['verbose_eval'])
+                ]
             )
             
-            # Get the run ID for tracking
-            run_id_mlflow = mlflow.active_run().info.run_id
+            # Get predictions
+            oof_predictions[valid_idx] = model.predict_proba(X_val)[:, 1]
+            test_predictions += model.predict_proba(X_test)[:, 1] / n_folds
             
-            logger.info(f"Logged model to MLflow run: {run_id_mlflow}")
-            logger.info(f"Model registered in MLflow Model Registry: fraud_detection_lgbm")
+            # Calculate fold score
+            fold_score = roc_auc_score(y_val, oof_predictions[valid_idx])
+            fold_scores.append(fold_score)
+            logger.info(f"Fold {fold_n + 1} ROC AUC: {fold_score:.6f}")
+            
+            # Log fold metric to MLflow if available
+            if mlflow_available:
+                try:
+                    mlflow.log_metric(f"fold_{fold_n + 1}_roc_auc", fold_score)
+                except Exception as e:
+                    logger.warning(f"Failed to log metric to MLflow: {e}")
+            
+            # Store model
+            self.models.append(model)
+        
+        # Calculate overall score
+        overall_score = roc_auc_score(y_train, oof_predictions)
+        mean_fold_score = np.mean(fold_scores)
+        std_fold_score = np.std(fold_scores)
+        
+        logger.info(f"Overall ROC AUC: {overall_score:.6f}")
+        logger.info(f"Mean Fold ROC AUC: {mean_fold_score:.6f} ± {std_fold_score:.6f}")
+        
+        # Log overall metrics to MLflow if available
+        run_id_mlflow = None
+        model_uri = None
+        if mlflow_available:
+            try:
+                mlflow.log_metrics({
+                    'overall_roc_auc': overall_score,
+                    'mean_fold_roc_auc': mean_fold_score,
+                    'std_fold_roc_auc': std_fold_score
+                })
+                
+                # Log the best model (last fold as representative)
+                model_info = mlflow.lightgbm.log_model(
+                    self.models[-1],
+                    "model",
+                    registered_model_name="fraud_detection_lgbm"
+                )
+                
+                run_id_mlflow = mlflow.active_run().info.run_id
+                model_uri = model_info.model_uri
+                
+                logger.info(f"Logged model to MLflow run: {run_id_mlflow}")
+                logger.info(f"Model registered in MLflow Model Registry: fraud_detection_lgbm")
+                
+                mlflow.end_run()
+            except Exception as e:
+                logger.warning(f"Failed to log to MLflow: {e}")
         
         return {
             'oof_predictions': oof_predictions,
@@ -186,7 +219,7 @@ class ModelTrainer:
             'overall_score': overall_score,
             'models': self.models,
             'mlflow_run_id': run_id_mlflow,
-            'model_uri': model_info.model_uri
+            'model_uri': model_uri
         }
     
     def run(
@@ -262,9 +295,13 @@ class ModelTrainer:
         logger.info("y_train shape: %s", y_train.shape)
         logger.info("X_test shape: %s", X_test.shape)
         
-        # Set MLflow experiment
-        experiment_name = self.config.get('mlflow', {}).get('experiment_name', 'fraud_detection')
-        mlflow.set_experiment(experiment_name)
+        # Set MLflow experiment (if MLflow is available)
+        try:
+            import mlflow
+            experiment_name = self.config.get('mlflow', {}).get('experiment_name', 'fraud_detection')
+            mlflow.set_experiment(experiment_name)
+        except (ImportError, Exception):
+            pass
         
         # Train model (MLflow logging happens inside)
         if self.model_config['type'] == 'lightgbm':

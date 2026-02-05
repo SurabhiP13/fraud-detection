@@ -21,6 +21,7 @@ default_args = {
 
 # Kubernetes configuration
 IMAGE = 'fraud-detection-airflow:v1'
+MODEL_TRAINING_IMAGE = 'fraud-detection-model-training:v1'  # Separate image with mlflow
 NAMESPACE = 'airflow'
 
 # Volume configuration for shared data
@@ -111,20 +112,22 @@ feature_engineering_task = KubernetesPodOperator(
     dag=dag,
 )
 
-# Task 5: Model Training
+# Task 5: Model Training (uses separate image with mlflow)
 model_training_task = KubernetesPodOperator(
     task_id='model_training',
     name='model-training',
     namespace=NAMESPACE,
-    image=IMAGE,
+    image=MODEL_TRAINING_IMAGE,  # Use model-training specific image
     image_pull_policy='Never',
     cmds=['python3'],
     arguments=['/opt/airflow/scripts/run_model_training.py'],
     volumes=[volume],
     volume_mounts=[volume_mount],
-    env_vars={'MLFLOW_TRACKING_URI': 'http://mlflow:5000'},
+    env_vars=[
+        k8s.V1EnvVar(name='MLFLOW_TRACKING_URI', value='http://mlflow-service.airflow.svc.cluster.local:5000'),
+    ],
     get_logs=True,
-    is_delete_operator_pod=True,
+    is_delete_operator_pod=False,  # DEBUG: Keep pod for inspection
     dag=dag,
 )
 

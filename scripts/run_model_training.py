@@ -4,6 +4,7 @@ Containerized entry point for model training task.
 """
 import sys
 import json
+import os
 from pathlib import Path
 
 # Add src to path
@@ -14,6 +15,13 @@ from model_training import run_model_training
 
 def main():
     """Run model training task."""
+    # Debug: Print environment
+    print("="*80)
+    print("ENVIRONMENT VARIABLES:")
+    print("="*80)
+    print(f"MLFLOW_TRACKING_URI: {os.getenv('MLFLOW_TRACKING_URI', 'NOT SET')}")
+    print("="*80)
+    
     # Read run_id from shared volume
     state_dir = Path('/opt/airflow/data/pipeline_state')
     run_id_file = state_dir / 'run_id.txt'

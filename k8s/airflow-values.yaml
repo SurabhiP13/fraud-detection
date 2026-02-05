@@ -161,6 +161,13 @@ redis:
 webserver:
   service:
     type: NodePort
+  extraVolumes:
+    - name: fraud-data
+      persistentVolumeClaim:
+        claimName: fraud-data-pvc
+  extraVolumeMounts:
+    - name: fraud-data
+      mountPath: /opt/airflow/data
 
 logs:
   persistence:
