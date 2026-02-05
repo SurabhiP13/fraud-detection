@@ -37,6 +37,19 @@ volume_mount = k8s.V1VolumeMount(
     read_only=False
 )
 
+# MLflow artifacts volume (shared with MLflow server)
+mlflow_volume = k8s.V1Volume(
+    name='mlflow-artifacts',
+    persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name='mlflow-pvc'),
+)
+
+mlflow_volume_mount = k8s.V1VolumeMount(
+    name='mlflow-artifacts',
+    mount_path='/mlflow',
+    sub_path=None,
+    read_only=False
+)
+
 # Define the DAG
 dag = DAG(
     'fraud_detection_pipeline_k8s',
@@ -121,8 +134,8 @@ model_training_task = KubernetesPodOperator(
     image_pull_policy='Never',
     cmds=['python3'],
     arguments=['/opt/airflow/scripts/run_model_training.py'],
-    volumes=[volume],
-    volume_mounts=[volume_mount],
+    volumes=[volume, mlflow_volume],  # Mount both data and mlflow PVCs
+    volume_mounts=[volume_mount, mlflow_volume_mount],  # Mount both volumes
     env_vars=[
         k8s.V1EnvVar(name='MLFLOW_TRACKING_URI', value='http://mlflow-service.airflow.svc.cluster.local:5000'),
     ],

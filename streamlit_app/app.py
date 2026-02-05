@@ -63,7 +63,7 @@ def load_model(model_name: str = "fraud_detection_lgbm", stage: str = "latest"):
     Cached to avoid reloading on every interaction.
     """
     try:
-        mlflow_uri = st.session_state.get('mlflow_uri', 'http://mlflow:5000')
+        mlflow_uri = st.session_state.get('mlflow_uri', 'http://mlflow-service.airflow.svc.cluster.local:5000')
         mlflow.set_tracking_uri(mlflow_uri)
         
         # Try to load from registry first
@@ -237,7 +237,7 @@ def main():
     # MLflow URI configuration
     mlflow_uri_input = st.sidebar.text_input(
         "MLflow Tracking URI",
-        value=st.session_state.get('mlflow_uri', 'http://mlflow:5000'),
+        value=st.session_state.get('mlflow_uri', 'http://mlflow-service.airflow.svc.cluster.local:5000'),
         help="URI of the MLflow tracking server"
     )
     
