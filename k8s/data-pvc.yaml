@@ -1,4 +1,17 @@
 apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: fraud-data-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  hostPath:
+    path: /mnt/d/Repositories/Repositories/ayush-fraud-detection/fraud-detection/data/unzipped
+  storageClassName: standard
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: fraud-data-pvc
@@ -10,3 +23,4 @@ spec:
     requests:
       storage: 5Gi  # Adjust based on your data size
   storageClassName: standard  # Minikube's default storage class
+  volumeName: fraud-data-pv
