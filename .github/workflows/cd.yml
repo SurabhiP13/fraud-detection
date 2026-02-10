@@ -20,6 +20,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Convert repository owner to lowercase
+      run: echo "IMAGE_PREFIX_LOWER=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
     - name: Set up kubectl
       uses: azure/setup-kubectl@v3
       with:
@@ -66,10 +69,10 @@ jobs:
     - name: Update Kubernetes manifests with new image tags
       run: |
         # Update image tags in deployment files
-        sed -i "s|fraud-detection-airflow:v1|${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-airflow:${{ github.sha }}|g" k8s/airflow-values.yaml
-        sed -i "s|fraud-detection-model-training:v1|${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-model-training:${{ github.sha }}|g" dags/fraud_detection_dag_k8s.py
-        sed -i "s|mlflow-server:v1|${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/mlflow-server:${{ github.sha }}|g" k8s/mlflow-deployment.yaml
-        sed -i "s|fraud-detection-streamlit:v1|${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-streamlit:${{ github.sha }}|g" k8s/streamlit-deployment.yaml
+        sed -i "s|fraud-detection-airflow:v1|${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-airflow:${{ github.sha }}|g" k8s/airflow-values.yaml
+        sed -i "s|fraud-detection-model-training:v1|${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-model-training:${{ github.sha }}|g" dags/fraud_detection_dag_k8s.py
+        sed -i "s|mlflow-server:v1|${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/mlflow-server:${{ github.sha }}|g" k8s/mlflow-deployment.yaml
+        sed -i "s|fraud-detection-streamlit:v1|${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-streamlit:${{ github.sha }}|g" k8s/streamlit-deployment.yaml
 
     - name: Create namespace if not exists
       run: |
@@ -93,7 +96,7 @@ jobs:
           --version 1.14.0 \
           -n ${{ env.NAMESPACE }} \
           -f k8s/airflow-values.yaml \
-          --set images.airflow.repository=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-airflow \
+          --set images.airflow.repository=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-airflow \
           --set images.airflow.tag=${{ github.sha }} \
           --wait --timeout 10m
 

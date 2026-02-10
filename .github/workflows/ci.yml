@@ -21,6 +21,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Convert repository owner to lowercase
+      run: echo "IMAGE_PREFIX_LOWER=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
     - name: Set up Python 3.11
       uses: actions/setup-python@v4
       with:
@@ -50,7 +53,7 @@ jobs:
       uses: docker/metadata-action@v5
       with:
         images: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-airflow
+          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-airflow
         tags: |
           type=ref,event=branch
           type=ref,event=pr
@@ -65,9 +68,9 @@ jobs:
         file: ./Dockerfile
         push: true
         tags: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-airflow:latest
-          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-airflow:${{ github.sha }}
-        cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-airflow:latest
+          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-airflow:latest
+          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-airflow:${{ github.sha }}
+        cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-airflow:latest
         cache-to: type=inline
 
     - name: Build and push Model Training image
@@ -78,9 +81,9 @@ jobs:
         file: ./Dockerfile.model-training
         push: true
         tags: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-model-training:latest
-          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-model-training:${{ github.sha }}
-        cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-model-training:latest
+          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-model-training:latest
+          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-model-training:${{ github.sha }}
+        cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-model-training:latest
         cache-to: type=inline
 
     - name: Build and push MLflow image
@@ -91,9 +94,9 @@ jobs:
         file: ./Dockerfile.mlflow
         push: true
         tags: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/mlflow-server:latest
-          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/mlflow-server:${{ github.sha }}
-        cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/mlflow-server:latest
+          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/mlflow-server:latest
+          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/mlflow-server:${{ github.sha }}
+        cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/mlflow-server:latest
         cache-to: type=inline
 
     - name: Build and push Streamlit image
@@ -104,13 +107,13 @@ jobs:
         file: ./streamlit_app/Dockerfile
         push: true
         tags: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-streamlit:latest
-          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-streamlit:${{ github.sha }}
-        cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-streamlit:latest
+          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-streamlit:latest
+          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-streamlit:${{ github.sha }}
+        cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-streamlit:latest
         cache-to: type=inline
 
     - name: Summary
       if: github.event_name != 'pull_request'
       run: |
-        echo "✅ All images built and pushed successfully!"
-        echo "Images available at: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}"
+        echo "Successfully built and pushed images:"
+        echo "Images available at: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}"
