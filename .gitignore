@@ -44,6 +44,9 @@ models/*.joblib
 data/
 *.csv
 
+# Exception: Include sample data for Streamlit
+!streamlit_app/sample_data/
+
 # Docker
 .dockerignore
 docker-compose.override.yml
