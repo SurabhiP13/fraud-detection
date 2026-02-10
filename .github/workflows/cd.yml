@@ -12,7 +12,7 @@ env:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     # For production, use environment protection rules
     # environment: production
     
@@ -112,7 +112,7 @@ jobs:
         kubectl get pods -n ${{ env.NAMESPACE }}
         kubectl get svc -n ${{ env.NAMESPACE }}
         echo ""
-        echo "✅ Deployment complete!"
+        echo "Deployment complete!"
         echo "Access services:"
         echo "  Airflow: kubectl port-forward svc/airflow-webserver 8080:8080 -n ${{ env.NAMESPACE }}"
         echo "  MLflow: kubectl port-forward svc/mlflow-service 5000:5000 -n ${{ env.NAMESPACE }}"
