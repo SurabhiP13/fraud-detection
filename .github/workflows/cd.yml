@@ -1,0 +1,127 @@
+name: CD - Deploy to Kubernetes
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}
+  NAMESPACE: airflow
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # For production, use environment protection rules
+    # environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    # Option 1: Deploy to cloud K8s (GKE, EKS, AKS)
+    # Uncomment and configure based on your cloud provider
+    
+    # For GKE:
+    # - name: Authenticate to Google Cloud
+    #   uses: google-github-actions/auth@v1
+    #   with:
+    #     credentials_json: ${{ secrets.GCP_SA_KEY }}
+    
+    # - name: Set up Cloud SDK
+    #   uses: google-github-actions/setup-gcloud@v1
+    
+    # - name: Get GKE credentials
+    #   run: |
+    #     gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} \
+    #       --zone ${{ secrets.GKE_ZONE }} \
+    #       --project ${{ secrets.GCP_PROJECT_ID }}
+
+    # For AWS EKS:
+    # - name: Configure AWS credentials
+    #   uses: aws-actions/configure-aws-credentials@v4
+    #   with:
+    #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    #     aws-region: ${{ secrets.AWS_REGION }}
+    
+    # - name: Update kubeconfig for EKS
+    #   run: |
+    #     aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region ${{ secrets.AWS_REGION }}
+
+    # Option 2: Self-hosted runner with Minikube access
+    # (Use this if you have a self-hosted GitHub Actions runner on the same machine as Minikube)
+    - name: Set kubeconfig (self-hosted)
+      if: runner.name == 'self-hosted'
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ secrets.KUBECONFIG }}" | base64 -d > $HOME/.kube/config
+
+    - name: Update Kubernetes manifests with new image tags
+      run: |
+        # Update image tags in deployment files
+        sed -i "s|fraud-detection-airflow:v1|${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-airflow:${{ github.sha }}|g" k8s/airflow-values.yaml
+        sed -i "s|fraud-detection-model-training:v1|${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-model-training:${{ github.sha }}|g" dags/fraud_detection_dag_k8s.py
+        sed -i "s|mlflow-server:v1|${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/mlflow-server:${{ github.sha }}|g" k8s/mlflow-deployment.yaml
+        sed -i "s|fraud-detection-streamlit:v1|${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-streamlit:${{ github.sha }}|g" k8s/streamlit-deployment.yaml
+
+    - name: Create namespace if not exists
+      run: |
+        kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: Deploy PVCs
+      run: |
+        kubectl apply -f k8s/data-pvc.yaml -n ${{ env.NAMESPACE }}
+        kubectl apply -f k8s/mlflow-deployment.yaml -n ${{ env.NAMESPACE }}  # Contains mlflow-pvc
+
+    - name: Deploy MLflow
+      run: |
+        kubectl apply -f k8s/mlflow-deployment.yaml -n ${{ env.NAMESPACE }}
+        kubectl rollout status deployment/mlflow -n ${{ env.NAMESPACE }} --timeout=5m
+
+    - name: Deploy Airflow with Helm
+      run: |
+        helm repo add apache-airflow https://airflow.apache.org
+        helm repo update
+        helm upgrade --install airflow apache-airflow/airflow \
+          --version 1.14.0 \
+          -n ${{ env.NAMESPACE }} \
+          -f k8s/airflow-values.yaml \
+          --set images.airflow.repository=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/fraud-detection-airflow \
+          --set images.airflow.tag=${{ github.sha }} \
+          --wait --timeout 10m
+
+    - name: Deploy Streamlit
+      run: |
+        kubectl apply -f k8s/streamlit-deployment.yaml -n ${{ env.NAMESPACE }}
+        kubectl rollout status deployment/streamlit -n ${{ env.NAMESPACE }} --timeout=5m
+
+    - name: Wait for all pods to be ready
+      run: |
+        kubectl wait --for=condition=ready pod --all -n ${{ env.NAMESPACE }} --timeout=10m
+
+    - name: Get deployment status
+      run: |
+        echo "=== Deployment Status ==="
+        kubectl get pods -n ${{ env.NAMESPACE }}
+        kubectl get svc -n ${{ env.NAMESPACE }}
+        echo ""
+        echo "✅ Deployment complete!"
+        echo "Access services:"
+        echo "  Airflow: kubectl port-forward svc/airflow-webserver 8080:8080 -n ${{ env.NAMESPACE }}"
+        echo "  MLflow: kubectl port-forward svc/mlflow-service 5000:5000 -n ${{ env.NAMESPACE }}"
+        echo "  Streamlit: kubectl port-forward svc/streamlit-service 8501:8501 -n ${{ env.NAMESPACE }}"
+
+    - name: Trigger DAG (optional)
+      if: github.event_name == 'push'
+      run: |
+        # Wait for scheduler to be ready
+        sleep 30
+        SCHEDULER_POD=$(kubectl get pod -n ${{ env.NAMESPACE }} -l component=scheduler -o jsonpath='{.items[0].metadata.name}')
+        kubectl exec -n ${{ env.NAMESPACE }} $SCHEDULER_POD -- airflow dags trigger fraud_detection_pipeline_k8s || true
