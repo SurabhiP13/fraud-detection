@@ -45,7 +45,9 @@ data/
 *.csv
 
 # Exception: Include sample data for Streamlit
+!streamlit_app/
 !streamlit_app/sample_data/
+!streamlit_app/sample_data/*.csv
 
 # Docker
 .dockerignore
