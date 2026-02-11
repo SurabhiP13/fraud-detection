@@ -99,16 +99,16 @@ jobs:
           -f k8s/airflow-values.yaml \
           --set images.airflow.repository=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-airflow \
           --set images.airflow.tag=${{ github.sha }} \
-          --wait --timeout 10m
+          --wait --timeout 20m
 
     - name: Deploy Streamlit
       run: |
         kubectl apply -f k8s/streamlit-deployment.yaml -n ${{ env.NAMESPACE }}
-        kubectl rollout status deployment/streamlit -n ${{ env.NAMESPACE }} --timeout=5m
+        kubectl rollout status deployment/streamlit -n ${{ env.NAMESPACE }} --timeout=10m
 
     - name: Wait for all pods to be ready
       run: |
-        kubectl wait --for=condition=ready pod --all -n ${{ env.NAMESPACE }} --timeout=10m
+        kubectl wait --for=condition=ready pod --all -n ${{ env.NAMESPACE }} --timeout=20m
 
     - name: Get deployment status
       run: |
