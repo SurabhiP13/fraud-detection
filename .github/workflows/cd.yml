@@ -78,10 +78,20 @@ jobs:
       run: |
         kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
 
+    - name: Clean up existing deployments
+      run: |
+        # Delete existing deployments to ensure PVCs can be deleted
+        kubectl delete deployment -n ${{ env.NAMESPACE }} --all --ignore-not-found=true
+        kubectl delete statefulset -n ${{ env.NAMESPACE }} --all --ignore-not-found=true
+        # Wait for pods to be fully deleted
+        kubectl wait --for=delete pod --all -n ${{ env.NAMESPACE }} --timeout=2m --ignore-not-found=true || true
+
     - name: Deploy PVCs
       run: |
         # Delete old PVCs to avoid immutability conflicts
-        kubectl delete pvc fraud-data-pvc -n ${{ env.NAMESPACE }} --ignore-not-found=true
+        kubectl delete pvc fraud-data-pvc -n ${{ env.NAMESPACE }} --ignore-not-found=true --grace-period=0 --force || true
+        kubectl delete pvc mlflow-pvc -n ${{ env.NAMESPACE }} --ignore-not-found=true --grace-period=0 --force || true
+        sleep 2
         # Reapply PVCs
         kubectl apply -f k8s/data-pvc.yaml -n ${{ env.NAMESPACE }}
         kubectl apply -f k8s/mlflow-deployment.yaml -n ${{ env.NAMESPACE }}  # Contains mlflow-pvc
