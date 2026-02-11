@@ -99,8 +99,6 @@ jobs:
           -f k8s/airflow-values.yaml \
           --set images.airflow.repository=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-airflow \
           --set images.airflow.tag=${{ github.sha }} \
-          --set migrateDatabaseJob.jobAnnotations."helm\.sh/hook"="pre-install,pre-upgrade" \
-          --set migrateDatabaseJob.jobAnnotations."helm\.sh/hook-weight"="-1" \
           --skip-crds \
           --wait --timeout 15m
         

@@ -128,6 +128,9 @@ migrateDatabaseJob:
   useHelmHooks: true
   backoffLimit: 5
   applyDefault: true
+  jobAnnotations:
+    "helm.sh/hook": "pre-install,pre-upgrade"
+    "helm.sh/hook-weight": "-1"
 
 dags:
   persistence:
