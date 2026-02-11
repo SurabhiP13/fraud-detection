@@ -115,13 +115,13 @@ images:
   airflow:
     repository: fraud-detection-airflow
     tag: v1
-    pullPolicy: Never
+    pullPolicy: IfNotPresent
 
 airflow:
   image:
     repository: fraud-detection-airflow
     tag: v1
-    pullPolicy: Never
+    pullPolicy: IfNotPresent
 
 migrateDatabaseJob:
   enabled: true

@@ -91,14 +91,21 @@ jobs:
 
     - name: Deploy Airflow with Helm
       run: |
+        # Clean up existing Airflow deployment to avoid conflicts
+        helm uninstall airflow -n ${{ env.NAMESPACE }} --ignore-not-found || true
+        kubectl delete jobs -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=airflow --ignore-not-found || true
+        sleep 10
+        
+        # Fresh install
         helm repo add apache-airflow https://airflow.apache.org
         helm repo update
-        helm upgrade --install airflow apache-airflow/airflow \
+        helm install airflow apache-airflow/airflow \
           --version 1.14.0 \
           -n ${{ env.NAMESPACE }} \
           -f k8s/airflow-values.yaml \
           --set images.airflow.repository=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-airflow \
           --set images.airflow.tag=${{ github.sha }} \
+          --set images.airflow.pullPolicy=IfNotPresent \
           --skip-crds \
           --wait --timeout 15m
         
