@@ -126,6 +126,8 @@ airflow:
 migrateDatabaseJob:
   enabled: true
   useHelmHooks: true
+  backoffLimit: 5
+  applyDefault: true
 
 dags:
   persistence:

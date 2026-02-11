@@ -99,14 +99,14 @@ jobs:
           -f k8s/airflow-values.yaml \
           --set images.airflow.repository=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-airflow \
           --set images.airflow.tag=${{ github.sha }} \
-          --timeout 5m
+          --set migrateDatabaseJob.jobAnnotations."helm\.sh/hook"="pre-install,pre-upgrade" \
+          --set migrateDatabaseJob.jobAnnotations."helm\.sh/hook-weight"="-1" \
+          --skip-crds \
+          --wait --timeout 15m
         
-        # Give Airflow time to start, but don't wait indefinitely
-        sleep 30
-        
-        # Check status without blocking
+        # Show deployment status
         kubectl get pods -n ${{ env.NAMESPACE }} || true
-        kubectl get pvc -n ${{ env.NAMESPACE }} || true
+        kubectl get services -n ${{ env.NAMESPACE }} || true
 
     - name: Deploy Streamlit
       run: |
