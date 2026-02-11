@@ -30,7 +30,7 @@ spec:
       containers:
       - name: streamlit
         image: fraud-detection-streamlit:v1
-        imagePullPolicy: Never
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8501
         env:

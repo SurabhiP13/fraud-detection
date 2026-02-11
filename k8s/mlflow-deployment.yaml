@@ -30,7 +30,7 @@ spec:
       containers:
       - name: mlflow
         image: mlflow-server:v1
-        imagePullPolicy: Never
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5000
         volumeMounts:
