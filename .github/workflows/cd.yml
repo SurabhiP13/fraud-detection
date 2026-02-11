@@ -80,6 +80,9 @@ jobs:
 
     - name: Deploy PVCs
       run: |
+        # Delete old PVCs to avoid immutability conflicts
+        kubectl delete pvc fraud-data-pvc -n ${{ env.NAMESPACE }} --ignore-not-found=true
+        # Reapply PVCs
         kubectl apply -f k8s/data-pvc.yaml -n ${{ env.NAMESPACE }}
         kubectl apply -f k8s/mlflow-deployment.yaml -n ${{ env.NAMESPACE }}  # Contains mlflow-pvc
 
