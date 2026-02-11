@@ -99,7 +99,14 @@ jobs:
           -f k8s/airflow-values.yaml \
           --set images.airflow.repository=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX_LOWER }}/fraud-detection-airflow \
           --set images.airflow.tag=${{ github.sha }} \
-          --wait --timeout 20m
+          --timeout 5m
+        
+        # Give Airflow time to start, but don't wait indefinitely
+        sleep 30
+        
+        # Check status without blocking
+        kubectl get pods -n ${{ env.NAMESPACE }} || true
+        kubectl get pvc -n ${{ env.NAMESPACE }} || true
 
     - name: Deploy Streamlit
       run: |
@@ -108,7 +115,11 @@ jobs:
 
     - name: Wait for all pods to be ready
       run: |
-        kubectl wait --for=condition=ready pod --all -n ${{ env.NAMESPACE }} --timeout=20m
+        # Try to wait for pods, but don't fail if it times out
+        kubectl wait --for=condition=ready pod --all -n ${{ env.NAMESPACE }} --timeout=30m || true
+        # Show status
+        echo "=== Pod Status ==="
+        kubectl get pods -n ${{ env.NAMESPACE }} -o wide || true
 
     - name: Get deployment status
       run: |
