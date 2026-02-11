@@ -171,9 +171,7 @@ webserver:
 
 logs:
   persistence:
-    enabled: true
-    size: 10Gi
-    storageClassName: standard
+    enabled: false
 
 kubernetes:
   volumes:

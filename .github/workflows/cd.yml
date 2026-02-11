@@ -94,6 +94,11 @@ jobs:
         # Clean up existing Airflow deployment to avoid conflicts
         helm uninstall airflow -n ${{ env.NAMESPACE }} --ignore-not-found || true
         kubectl delete jobs -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=airflow --ignore-not-found || true
+        
+        # Force delete any stuck Airflow-managed PVCs
+        kubectl delete pvc airflow-logs -n ${{ env.NAMESPACE }} --grace-period=0 --force --ignore-not-found || true
+        kubectl delete pvc -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=airflow --grace-period=0 --force --ignore-not-found || true
+        
         sleep 10
         
         # Fresh install WITHOUT waiting (let pods start in background)
@@ -131,7 +136,7 @@ jobs:
       run: |
         # Try to wait for pods, but don't fail if it times out
         kubectl wait --for=condition=ready pod --all -n ${{ env.NAMESPACE }} --timeout=30m || true
-        # Show status
+        # Show status regardless
         echo "=== Pod Status ==="
         kubectl get pods -n ${{ env.NAMESPACE }} -o wide || true
 
