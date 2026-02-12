@@ -73,7 +73,7 @@ setup_task = KubernetesPodOperator(
     volumes=[volume],
     volume_mounts=[volume_mount],
     get_logs=True,
-    is_delete_operator_pod=True,
+    is_delete_operator_pod=False,  # Keep pods for debugging
     dag=dag,
 )
 
