@@ -8,7 +8,7 @@ spec:
   accessModes:
     - ReadWriteMany
   hostPath:
-    path: /mnt/d/Repositories/Repositories/ayush-fraud-detection/fraud-detection/data/unzipped
+    path: /mnt/d/Repositories/Repositories/ayush-fraud-detection/fraud-detection/data
   storageClassName: standard
 ---
 apiVersion: v1
