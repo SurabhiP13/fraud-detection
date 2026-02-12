@@ -37,6 +37,12 @@ volume_mount = k8s.V1VolumeMount(
     read_only=False
 )
 
+# Security context to fix permission issues
+security_context = k8s.V1PodSecurityContext(
+    fs_group=50000,  # Airflow user group
+    run_as_user=50000,  # Airflow user
+)
+
 # MLflow artifacts volume (shared with MLflow server)
 mlflow_volume = k8s.V1Volume(
     name='mlflow-artifacts',
@@ -72,6 +78,7 @@ setup_task = KubernetesPodOperator(
     arguments=['/opt/airflow/scripts/run_setup.py'],
     volumes=[volume],
     volume_mounts=[volume_mount],
+    security_context=security_context,
     get_logs=True,
     is_delete_operator_pod=False,  # Keep pods for debugging
     dag=dag,
