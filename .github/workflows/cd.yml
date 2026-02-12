@@ -134,9 +134,12 @@ jobs:
 
     - name: Wait for all pods to be ready
       run: |
-        # Try to wait for pods, but don't fail if it times out
-        kubectl wait --for=condition=ready pod --all -n ${{ env.NAMESPACE }} --timeout=30m || true
-        # Show status regardless
+        # Only wait for Airflow pods, not old failed pods
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=airflow -n ${{ env.NAMESPACE }} --timeout=10m || true
+        kubectl wait --for=condition=ready pod -l app=mlflow -n ${{ env.NAMESPACE }} --timeout=2m || true
+        kubectl wait --for=condition=ready pod -l app=streamlit -n ${{ env.NAMESPACE }} --timeout=2m || true
+        
+        # Show final status
         echo "=== Pod Status ==="
         kubectl get pods -n ${{ env.NAMESPACE }} -o wide || true
 
