@@ -105,8 +105,10 @@ data_ingestion_task = KubernetesPodOperator(
     arguments=['/opt/airflow/scripts/run_data_ingestion.py'],
     volumes=[volume],
     volume_mounts=[volume_mount],
+    security_context=security_context,
+    init_containers=[init_container],
     get_logs=True,
-    is_delete_operator_pod=True,
+    is_delete_operator_pod=False,  # Keep pods for debugging
     dag=dag,
 )
 
@@ -121,8 +123,10 @@ data_cleaning_task = KubernetesPodOperator(
     arguments=['/opt/airflow/scripts/run_data_cleaning.py'],
     volumes=[volume],
     volume_mounts=[volume_mount],
+    security_context=security_context,
+    init_containers=[init_container],
     get_logs=True,
-    is_delete_operator_pod=True,
+    is_delete_operator_pod=False,
     dag=dag,
 )
 
@@ -137,8 +141,10 @@ feature_engineering_task = KubernetesPodOperator(
     arguments=['/opt/airflow/scripts/run_feature_engineering.py'],
     volumes=[volume],
     volume_mounts=[volume_mount],
+    security_context=security_context,
+    init_containers=[init_container],
     get_logs=True,
-    is_delete_operator_pod=True,
+    is_delete_operator_pod=False,
     dag=dag,
 )
 
@@ -153,11 +159,13 @@ model_training_task = KubernetesPodOperator(
     arguments=['/opt/airflow/scripts/run_model_training.py'],
     volumes=[volume, mlflow_volume],  # Mount both data and mlflow PVCs
     volume_mounts=[volume_mount, mlflow_volume_mount],  # Mount both volumes
+    security_context=security_context,
+    init_containers=[init_container],
     env_vars=[
         k8s.V1EnvVar(name='MLFLOW_TRACKING_URI', value='http://mlflow-service.airflow.svc.cluster.local:5000'),
     ],
     get_logs=True,
-    is_delete_operator_pod=False,  # DEBUG: Keep pod for inspection
+    is_delete_operator_pod=False,  # Keep pod for inspection
     dag=dag,
 )
 
