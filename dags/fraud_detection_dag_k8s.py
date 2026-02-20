@@ -43,6 +43,15 @@ security_context = k8s.V1PodSecurityContext(
     run_as_user=50000,  # Airflow user
 )
 
+# Init container to fix volume permissions
+init_container = k8s.V1Container(
+    name="fix-permissions",
+    image="busybox:latest",
+    command=["sh", "-c", "chmod -R 777 /opt/airflow/data && chown -R 50000:50000 /opt/airflow/data"],
+    volume_mounts=[volume_mount],
+    security_context=k8s.V1SecurityContext(run_as_user=0)  # Run as root
+)
+
 # MLflow artifacts volume (shared with MLflow server)
 mlflow_volume = k8s.V1Volume(
     name='mlflow-artifacts',
@@ -79,6 +88,7 @@ setup_task = KubernetesPodOperator(
     volumes=[volume],
     volume_mounts=[volume_mount],
     security_context=security_context,
+    init_containers=[init_container],  # Fix permissions before running
     get_logs=True,
     is_delete_operator_pod=False,  # Keep pods for debugging
     dag=dag,
