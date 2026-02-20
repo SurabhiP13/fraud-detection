@@ -8,7 +8,7 @@ spec:
   accessModes:
     - ReadWriteMany
   hostPath:
-    path: /mnt/d/Repositories/Repositories/ayush-fraud-detection/fraud-detection/data
+    path: /data #the mnt/d/...frud-detectiontion/data was no available inside minikube ssh (VM), so I used the wsl data directory which is accessible and shared with minikube)
   storageClassName: standard
 ---
 apiVersion: v1
