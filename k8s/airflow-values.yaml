@@ -116,6 +116,13 @@ images:
     repository: fraud-detection-airflow
     tag: v1
     pullPolicy: IfNotPresent
+  # KubernetesExecutor worker pods are built from images.pod_template, NOT
+  # images.airflow. Leaving this unset falls back to defaultAirflowRepository
+  # (stock apache/airflow), which has neither our DAGs nor lightgbm baked in.
+  pod_template:
+    repository: fraud-detection-airflow
+    tag: v1
+    pullPolicy: IfNotPresent
 
 airflow:
   image:
@@ -173,12 +180,15 @@ logs:
   persistence:
     enabled: false
 
-kubernetes:
-  volumes:
+# NOTE: the chart has no top-level `kubernetes:` key — a block there is silently
+# ignored. The KubernetesExecutor pod_template_file is rendered from `workers:`,
+# so the task pods' data mount has to be declared here.
+workers:
+  extraVolumes:
     - name: fraud-data
       persistentVolumeClaim:
         claimName: fraud-data-pvc
-  volumeMounts:
+  extraVolumeMounts:
     - name: fraud-data
       mountPath: /opt/airflow/data
 

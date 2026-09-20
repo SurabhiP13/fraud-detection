@@ -24,10 +24,15 @@ default_args = {
 IMAGE = 'fraud-detection-pipeline:latest'
 NETWORK = 'fraud-detection_fraud-detection'  # Docker Compose network
 
-# Volume mounts for shared data
+# Volume mounts for shared data. Names are pinned in docker-compose.yml
+# (volumes.*.name) so they do not depend on the compose project name.
 mounts = [
     Mount(source='fraud-detection_data', target='/opt/airflow/data', type='volume'),
-    # Mount(source='fraud-detection_config', target='/opt/airflow/config.yaml', type='bind'),
+]
+# The MLflow server uses a non-proxied artifact root, so the training container
+# must see the same /mlflow path the server and Streamlit use.
+mlflow_mounts = mounts + [
+    Mount(source='fraud-detection_mlflow', target='/mlflow', type='volume'),
 ]
 
 # Define the DAG
@@ -95,7 +100,7 @@ model_training_task = DockerOperator(
     task_id='model_training',
     image=IMAGE,
     command='python3 /opt/airflow/scripts/run_model_training.py',
-    mounts=mounts,
+    mounts=mlflow_mounts,
     network_mode=NETWORK,
     environment={'MLFLOW_TRACKING_URI': 'http://mlflow:5000'},
     auto_remove=True,

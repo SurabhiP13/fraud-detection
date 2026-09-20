@@ -4,12 +4,9 @@ Replicates the exact cleaning and feature engineering pipeline.
 """
 
 import json
-import joblib
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from typing import Dict, Optional, List
-from sklearn.preprocessing import LabelEncoder
 
 
 class FraudPreprocessor:
@@ -18,77 +15,42 @@ class FraudPreprocessor:
     Loads saved artifacts from training (label encoders, feature stats).
     """
     
-    def __init__(
-        self,
-        label_encoders_path: str = "preprocess_artifacts/label_encoders.pkl",
-        feature_stats_path: str = "preprocess_artifacts/feature_stats.json",
-        feature_names_path: str = "preprocess_artifacts/feature_names.json",
-    ):
+    def __init__(self, artifacts_dir: str):
         """
-        Initialize preprocessor with saved training artifacts.
-        
         Args:
-            label_encoders_path: Path to saved label encoders (pickle)
-            feature_stats_path: Path to feature statistics (JSON)
-            feature_names_path: Path to feature names list (JSON)
+            artifacts_dir: Directory holding feature_names.json, feature_stats.json and
+                label_encoders.json, as logged by the training pipeline next to the model.
         """
-        self.label_encoders = joblib.load(label_encoders_path)
-        
-        with open(feature_stats_path, 'r') as f:
-            self.feature_stats = json.load(f)
-        
-        with open(feature_names_path, 'r') as f:
+        artifacts = Path(artifacts_dir)
+
+        with open(artifacts / "feature_names.json") as f:
             self.feature_names = json.load(f)
-    
+
+        with open(artifacts / "feature_stats.json") as f:
+            self.feature_stats = json.load(f)
+
+        # LabelEncoder.classes_ is sorted, so a class's position is its encoded value.
+        with open(artifacts / "label_encoders.json") as f:
+            self.label_encoders = {
+                col: {cls: i for i, cls in enumerate(classes)}
+                for col, classes in json.load(f).items()
+            }
+
     def clean_transaction(self, raw_tx: pd.Series) -> pd.Series:
         """
-        Apply data cleaning (same as data_cleaning.py).
-        
-        Args:
-            raw_tx: Single transaction as pandas Series
-        
-        Returns:
-            Cleaned transaction
+        Column dropping in data_cleaning.py is data-driven (null / constant columns), and
+        its result is already captured by feature_names, so nothing is dropped here.
         """
-        tx = raw_tx.copy()
-        
-        # Drop identity columns (same as config.yaml drop_columns)
-        identity_cols = [
-            'id_12', 'id_13', 'id_14', 'id_15', 'id_16', 'id_17', 'id_18', 
-            'id_19', 'id_20', 'id_21', 'id_22', 'id_23', 'id_24', 'id_25', 
-            'id_26', 'id_27', 'id_28', 'id_29', 'id_30', 'id_31', 'id_32', 
-            'id_33', 'id_34', 'id_35', 'id_36', 'id_37', 'id_38'
-        ]
-        
-        for col in identity_cols:
-            if col in tx.index:
-                tx = tx.drop(col)
-        
-        return tx
-    
+        return raw_tx.copy()
+
     def _safe_encode(self, value: str, column: str) -> int:
-        """
-        Safely encode a categorical value using saved LabelEncoder.
-        Handles unknown categories by encoding as -1.
-        """
+        """Encode a categorical value with the training-time mapping; unseen values become -1."""
         if column not in self.label_encoders:
             return value
-        
-        encoder = self.label_encoders[column]
-        
-        # Handle NaN
-        if pd.isna(value):
-            value = "__NA__"
-        else:
-            value = str(value)
-        
-        # Try to transform, use -1 for unknown categories
-        try:
-            return encoder.transform([value])[0]
-        except ValueError:
-            # Unknown category not seen in training
-            return -1
-    
+
+        value = "__NA__" if pd.isna(value) else str(value)
+        return self.label_encoders[column].get(value, -1)
+
     def engineer_features(self, cleaned_tx: pd.Series) -> pd.Series:
         """
         Apply feature engineering (same as feature_engineering.py).
@@ -110,8 +72,11 @@ class FraudPreprocessor:
                     col_name = f"{prefix}_{i+1}"
                     tx[col_name] = parts[i] if i < len(parts) else np.nan
             else:
-                for i in range(3):
-                    tx[f"{prefix}_{i+1}"] = np.nan
+                # Training fills missing domains with "" before splitting, so the first
+                # piece is "" (a real encoder class), not NaN.
+                tx[f"{prefix}_1"] = ""
+                tx[f"{prefix}_2"] = np.nan
+                tx[f"{prefix}_3"] = np.nan
         
         # 2. Aggregation features using SAVED statistics
         # TransactionAmt ratios
@@ -236,67 +201,3 @@ class FraudPreprocessor:
         
         # Return as 2D array (sklearn expects (n_samples, n_features))
         return engineered.values.reshape(1, -1)
-
-
-# Helper function to save artifacts during training
-def save_preprocessing_artifacts(
-    label_encoders: Dict[str, LabelEncoder],
-    feature_stats: Dict[str, Dict],
-    feature_names: List[str],
-    output_dir: str = "../models"
-):
-    """
-    Save preprocessing artifacts for production use.
-    Call this at the end of feature_engineering.py
-    
-    Args:
-        label_encoders: Dict of column -> LabelEncoder
-        feature_stats: Dict of aggregation statistics
-        feature_names: List of feature names in correct order
-        output_dir: Where to save artifacts
-    """
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-    
-    # Save label encoders as pickle
-    encoders_path = output_path / "label_encoders.pkl"
-    joblib.dump(label_encoders, encoders_path)
-    print(f"✓ Saved label encoders to {encoders_path}")
-    
-    # Save feature stats as JSON
-    stats_path = output_path / "feature_stats.json"
-    with open(stats_path, 'w') as f:
-        json.dump(feature_stats, f, indent=2)
-    print(f"✓ Saved feature stats to {stats_path}")
-    
-    # Save feature names as JSON
-    names_path = output_path / "feature_names.json"
-    with open(names_path, 'w') as f:
-        json.dump(feature_names, f, indent=2)
-    print(f"✓ Saved feature names to {names_path}")
-
-
-if __name__ == "__main__":
-    # Test the preprocessor
-    print("Testing FraudPreprocessor...")
-    
-    # Load a sample transaction
-    samples_path = Path("../data/samples/raw_transactions.csv")
-    if samples_path.exists():
-        df = pd.read_csv(samples_path)
-        sample_tx = df.iloc[0]
-        
-        print(f"\nLoaded sample transaction (TransactionID: {sample_tx['TransactionID']})")
-        
-        # Initialize preprocessor (using default paths inside streamlit_app/)
-        preprocessor = FraudPreprocessor()
-        
-        # Preprocess
-        feature_vector = preprocessor.preprocess(sample_tx)
-        
-        print(f"\n✓ Preprocessing successful!")
-        print(f"  Feature vector shape: {feature_vector.shape}")
-        print(f"  Expected features: {len(preprocessor.feature_names)}")
-        print(f"  Non-null features: {np.sum(~np.isnan(feature_vector))}")
-    else:
-        print(f"Sample data not found at {samples_path}")

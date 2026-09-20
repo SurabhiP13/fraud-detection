@@ -45,6 +45,14 @@ class FeatureEngineering:
         self.fe_config = config["feature_engineering"]
         self.data_config = config["data"]
         self.label_encoders: Dict[str, LabelEncoder] = {}
+        # "<prefix>_mean_by_<group>" / "<prefix>_std_by_<group>" -> {group value: stat}.
+        # Saved so single transactions can be scored later (see streamlit_app/preprocessing.py).
+        self.feature_stats: Dict[str, Dict[str, float]] = {}
+
+    @staticmethod
+    def _stat_key(group_col: str, value) -> str:
+        # Must match the lookup keys built in streamlit_app/preprocessing.py.
+        return str(int(value)) if group_col == "card1" else str(value)
 
     # -------------------------------
     # Feature creation
@@ -104,6 +112,11 @@ class FeatureEngineering:
             grp = train.groupby(gcol)[value_col]
             means = grp.mean()
             stds = grp.std()
+
+            for stat_name, stat in (("mean", means), ("std", stds)):
+                self.feature_stats[f"{prefix}_{stat_name}_by_{gcol}"] = {
+                    self._stat_key(gcol, k): float(v) for k, v in stat.items() if pd.notna(v)
+                }
 
             # map into train/test
             train_mean = train[gcol].map(means)
@@ -408,6 +421,9 @@ class FeatureEngineering:
         feature_names_path = output_dir / "feature_names.json"
         feature_names_path.write_text(json.dumps(list(X_train.columns), indent=2), encoding="utf-8")
 
+        feature_stats_path = output_dir / "feature_stats.json"
+        feature_stats_path.write_text(json.dumps(self.feature_stats), encoding="utf-8")
+
         # Save which columns got label-encoded (useful for debugging/repro)
         encoding_info_path = output_dir / "encoding_info.json"
         encoding_info = {
@@ -439,6 +455,7 @@ class FeatureEngineering:
                 "feature_names_path": str(feature_names_path),
                 "encoding_info_path": str(encoding_info_path),
                 "label_encoders_path": str(encoders_path),
+                "feature_stats_path": str(feature_stats_path),
             },
             "stats": {
                 "X_train_shape": [int(X_train.shape[0]), int(X_train.shape[1])],

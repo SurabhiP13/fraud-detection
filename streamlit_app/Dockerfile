@@ -16,9 +16,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY preprocessing.py .
 COPY app.py .
 
-# Copy preprocessing artifacts
-COPY preprocess_artifacts/ ./preprocess_artifacts/
-
 # Copy sample data
 COPY sample_data/ ./sample_data/
 

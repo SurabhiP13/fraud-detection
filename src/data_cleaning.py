@@ -255,17 +255,30 @@ def run_data_cleaning(
     Airflow-compatible entrypoint.
     """
     config = load_config(config_path)
-###This is just for running locally; airlow will pass these paths from ingestion###
-    if run_id is None and train_path is None and test_path is None:
+
+    # Local-dev fallback: Airflow always passes run_id + upstream_manifest_path.
+    # When run standalone, derive a run_id from the config and pick up the most
+    # recent ingestion output (portable -- no hard-coded host paths).
+    if run_id is None:
         cfg_text = Path(config_path).read_text(encoding="utf-8")
         cfg_hash = _sha256_text(cfg_text)[:10]
         ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
         run_id = f"{ts}_{cfg_hash}"
-        
-        train_path = str("C:\\Users\\psura\\Repositories\\fraud-detection-system\\data\\processed\\ingestion\\20260120_0723_4aff7cc44c\\train_merged.csv")
-    
-        test_path = str("C:\\Users\\psura\\Repositories\\fraud-detection-system\\data\\processed\\ingestion\\20260120_0723_4aff7cc44c\\test_merged.csv")
-    
+        logger.info("Auto-generated run_id for local testing: %s", run_id)
+
+    if not (train_path and test_path) and not upstream_manifest_path:
+        data_cfg = config["data"]
+        ingestion_dir = Path(data_cfg["processed_data_dir"]) / data_cfg.get("ingested_subdir", "ingestion")
+        if ingestion_dir.exists():
+            runs = sorted([d for d in ingestion_dir.iterdir() if d.is_dir()], reverse=True)
+            for latest_run in runs:
+                train_fallback = latest_run / data_cfg.get("train_merged_name", "train_merged.csv")
+                test_fallback = latest_run / data_cfg.get("test_merged_name", "test_merged.csv")
+                if train_fallback.exists() and test_fallback.exists():
+                    train_path, test_path = str(train_fallback), str(test_fallback)
+                    logger.info("Using most recent ingestion output from %s", latest_run)
+                    break
+
     cleaning = DataCleaning(config)
     return cleaning.run(
         run_id=run_id,

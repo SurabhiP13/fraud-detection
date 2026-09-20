@@ -9,9 +9,12 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python packages
+# Copy requirements and install Python packages.
+# mlflow is added so the model_training stage can log/register the model when
+# this image is used by the DockerOperator DAG (the k8s DAG uses
+# Dockerfile.model-training for that stage instead).
 COPY requirements-airflow.txt /tmp/
-RUN pip install --no-cache-dir -r /tmp/requirements-airflow.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-airflow.txt mlflow==2.9.2
 
 # Copy source code and raw data
 COPY src/ /opt/airflow/src/

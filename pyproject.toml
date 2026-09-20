@@ -1,10 +1,27 @@
 [project]
 name = "fraud-detection"
 version = "0.1.0"
-description = "Add your description here"
+description = "Credit-card fraud detection pipeline: Airflow + MLflow + Streamlit on minikube"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.128.0",
     "sqlalchemy>=2.0.45",
 ]
+
+# Local development / test environment (`uv sync --group dev`). The container
+# images pin their own versions (requirements-airflow.txt, Dockerfile.*);
+# lightgbm is left floating here because 4.0.0 has no Apple Silicon wheel.
+# On macOS LightGBM needs OpenMP:  brew install libomp
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pandas>=2.0",
+    "numpy>=1.26,<2.0",
+    "pyyaml>=6.0",
+    "scikit-learn>=1.3.2",
+    "lightgbm>=4.5",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

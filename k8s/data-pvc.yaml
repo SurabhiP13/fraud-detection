@@ -1,5 +1,5 @@
 apiVersion: v1
-kind: PersistentVolume #actual storage infra (wsl data directory)
+kind: PersistentVolume #actual storage infra (path inside the minikube node)
 metadata:
   name: fraud-data-pv
 spec:
@@ -8,7 +8,13 @@ spec:
   accessModes:
     - ReadWriteMany
   hostPath:
-    path: /data #the mnt/d/...frud-detectiontion/data was no available inside minikube ssh (VM), so I used the wsl data directory which is accessible and shared with minikube)
+    # /data is one of the directories minikube persists across `minikube stop/start`
+    # (it is wiped by `minikube delete`). Host project files are NOT visible here --
+    # load the raw CSVs into the node first, e.g.:
+    #   minikube cp ./data/unzipped/train_transaction.csv /data/unzipped/train_transaction.csv
+    # or start the cluster with a bind mount:
+    #   minikube start --mount --mount-string="$PWD/data:/data"
+    path: /data
   storageClassName: standard
 ---
 apiVersion: v1

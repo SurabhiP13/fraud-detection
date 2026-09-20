@@ -136,6 +136,10 @@ output:
   model_format: "pickle"  # Options: pickle, joblib
 
 # MLflow settings
+# The MLFLOW_TRACKING_URI environment variable always wins over this value
+# (see ModelTrainer); it is set by the DAGs / compose file. YAML does not
+# expand ${VAR} syntax, so keep a plain default here for local runs. An empty
+# string disables tracking.
 mlflow:
-  tracking_uri: ${MLFLOW_TRACKING_URI:-http://localhost:5000}
+  tracking_uri: "http://localhost:5000"
   experiment_name: "fraud_detection"

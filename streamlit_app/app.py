@@ -7,9 +7,10 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import mlflow
+import mlflow.artifacts
 import mlflow.pyfunc
-from pathlib import Path
-import json
+from mlflow.tracking import MlflowClient
+import tempfile
 
 from preprocessing import FraudPreprocessor
 
@@ -57,48 +58,43 @@ st.markdown("""
 
 
 @st.cache_resource
-def load_model(model_name: str = "fraud_detection_lgbm", stage: str = "latest"):
+def load_model_bundle(model_name: str, mlflow_uri: str):
     """
-    Load model from MLflow registry.
+    Load a registered model together with the preprocessing artifacts logged on
+    the same MLflow run, so the feature vector always matches the model.
     Cached to avoid reloading on every interaction.
     """
     try:
-        mlflow_uri = st.session_state.get('mlflow_uri', 'http://mlflow-service.airflow.svc.cluster.local:5000')
         mlflow.set_tracking_uri(mlflow_uri)
-        
-        # Try to load from registry first
-        try:
-            model_uri = f"models:/{model_name}/Production"
-            model = mlflow.pyfunc.load_model(model_uri)
-            st.sidebar.success(f"✓ Loaded model from Production stage")
-            return model, "Production"
-        except:
-            # Fallback to latest version
-            model_uri = f"models:/{model_name}/None"
-            model = mlflow.pyfunc.load_model(model_uri)
-            st.sidebar.success(f"✓ Loaded latest model version")
-            return model, "Latest"
-            
-    except Exception as e:
-        st.error(f"❌ Failed to load model: {e}")
-        st.info("💡 Make sure MLflow is running and model is registered")
-        return None, None
+        client = MlflowClient()
 
+        versions = client.search_model_versions(f"name='{model_name}'")
+        production = [v for v in versions if v.current_stage == "Production"]
+        candidates = production or versions
+        if not candidates:
+            raise RuntimeError(f"no registered versions of '{model_name}'")
+        version = max(candidates, key=lambda v: int(v.version))
+        stage = "Production" if production else "Latest"
 
-@st.cache_resource
-def load_preprocessor():
-    """
-    Load the preprocessing pipeline.
-    Cached to avoid reloading artifacts.
-    """
-    try:
-        preprocessor = FraudPreprocessor()
+        model = mlflow.pyfunc.load_model(f"models:/{model_name}/{version.version}")
+        artifacts_dir = mlflow.artifacts.download_artifacts(
+            run_id=version.run_id,
+            artifact_path="preprocess_artifacts",
+            dst_path=tempfile.mkdtemp(),
+        )
+        preprocessor = FraudPreprocessor(artifacts_dir)
+
+        st.sidebar.success(f"✓ Loaded model v{version.version} ({stage})")
         st.sidebar.success(f"✓ Loaded preprocessor ({len(preprocessor.feature_names)} features)")
-        return preprocessor
+        return model, f"{stage} (v{version.version})", preprocessor
+
     except Exception as e:
-        st.error(f"❌ Failed to load preprocessor: {e}")
-        st.info("💡 Make sure preprocess_artifacts/ contains all required files")
-        return None
+        st.error(f"❌ Failed to load model and preprocessing artifacts: {e}")
+        st.info(
+            "💡 Make sure MLflow is running and the model version was trained by a pipeline "
+            "run that logged preprocess_artifacts/ (retrain with the current pipeline)"
+        )
+        return None, None, None
 
 
 @st.cache_data
@@ -264,8 +260,10 @@ def main():
     
     with st.spinner("Loading components..."):
         samples_df = load_sample_transactions()
-        preprocessor = load_preprocessor()
-        model, model_stage = load_model(model_name)
+        model, model_stage, preprocessor = load_model_bundle(
+            model_name,
+            st.session_state.get('mlflow_uri', 'http://mlflow-service.airflow.svc.cluster.local:5000'),
+        )
     
     # Check if all components loaded successfully
     if samples_df is None or preprocessor is None or model is None:

@@ -31,7 +31,8 @@ def _sha256_file(path: Path) -> str:
 
 
 def _sha256_text(s: str) -> str:
-    su
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
 
 class ModelTrainer:
     """Class for training and evaluating fraud detection models."""
@@ -83,7 +84,8 @@ class ModelTrainer:
     def train_lightgbm_model(self,
                              X_train: pd.DataFrame,
                              y_train: pd.Series,
-                             X_test: pd.DataFrame) -> Dict[str, any]:
+                             X_test: pd.DataFrame,
+                             preprocess_artifacts: Optional[Dict[str, str]] = None) -> Dict[str, any]:
         """
         Train LightGBM model with cross-validation and log to MLflow.
         
@@ -195,6 +197,14 @@ class ModelTrainer:
                     'std_fold_roc_auc': std_fold_score
                 })
                 
+                # Ship the preprocessing artifacts with the model so a consumer can
+                # always rebuild the exact feature vector this model was trained on.
+                if preprocess_artifacts:
+                    for artifact_path in preprocess_artifacts.values():
+                        mlflow.log_artifact(artifact_path, artifact_path="preprocess_artifacts")
+                else:
+                    logger.warning("No preprocess artifacts supplied; the model will be logged without them")
+
                 # Log the best model (last fold as representative)
                 model_info = mlflow.lightgbm.log_model(
                     self.models[-1],
@@ -248,9 +258,16 @@ class ModelTrainer:
         """
         logger.info("Starting model training... run_id=%s", run_id)
         
+        preprocess_artifacts = None
+
         # Resolve inputs from upstream manifest if provided
         if upstream_manifest_path:
             m = json.loads(Path(upstream_manifest_path).read_text(encoding="utf-8"))
+            preprocess_artifacts = {
+                k: m["outputs"][k]
+                for k in ("feature_names_path", "label_encoders_path", "feature_stats_path")
+                if k in m["outputs"]
+            }
             X_train_path = X_train_path or m["outputs"]["X_train_path"]
             y_train_path = y_train_path or m["outputs"]["y_train_path"]
             X_test_path = X_test_path or m["outputs"]["X_test_path"]
@@ -305,7 +322,7 @@ class ModelTrainer:
         
         # Train model (MLflow logging happens inside)
         if self.model_config['type'] == 'lightgbm':
-            results = self.train_lightgbm_model(X_train, y_train, X_test)
+            results = self.train_lightgbm_model(X_train, y_train, X_test, preprocess_artifacts)
         else:
             raise ValueError(f"Unsupported model type: {self.model_config['type']}")
         

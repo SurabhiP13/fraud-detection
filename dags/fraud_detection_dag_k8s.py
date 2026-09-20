@@ -3,6 +3,7 @@ Airflow DAG for Fraud Detection Pipeline (Kubernetes Version).
 
 This version uses KubernetesPodOperator for running tasks in Kubernetes pods.
 """
+import os
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
@@ -19,10 +20,13 @@ default_args = {
     'retry_delay': timedelta(minutes=5),
 }
 
-# Kubernetes configuration
-IMAGE = 'fraud-detection-airflow:v1'
-MODEL_TRAINING_IMAGE = 'fraud-detection-model-training:v1'  # Separate image with mlflow
-NAMESPACE = 'airflow'
+# Kubernetes configuration.
+# Image names default to the local tags built into minikube's docker daemon
+# (see scripts/start_cluster.sh). The CD workflow overrides them through the
+# Helm chart's `env:` list so the same DAG can run registry-tagged images.
+IMAGE = os.getenv('FRAUD_AIRFLOW_IMAGE', 'fraud-detection-airflow:v1')
+MODEL_TRAINING_IMAGE = os.getenv('FRAUD_TRAINING_IMAGE', 'fraud-detection-model-training:v1')  # Separate image with mlflow
+NAMESPACE = os.getenv('FRAUD_NAMESPACE', 'airflow')
 
 # Volume configuration for shared data
 volume = k8s.V1Volume(
@@ -65,13 +69,27 @@ mlflow_volume_mount = k8s.V1VolumeMount(
     read_only=False
 )
 
+# The MLflow server uses a non-proxied artifact root, so the training pod writes
+# model artifacts straight into /mlflow/artifacts on the shared PVC. Make sure
+# uid 50000 can write there too (k8s/mlflow-deployment.yaml runs the server as
+# the same uid; this covers PVCs created before that change).
+training_init_container = k8s.V1Container(
+    name="fix-permissions",
+    image="busybox:latest",
+    command=["sh", "-c",
+             "chmod -R 777 /opt/airflow/data && chown -R 50000:50000 /opt/airflow/data && "
+             "mkdir -p /mlflow/artifacts && chown -R 50000:50000 /mlflow && chmod -R 775 /mlflow"],
+    volume_mounts=[volume_mount, mlflow_volume_mount],
+    security_context=k8s.V1SecurityContext(run_as_user=0)
+)
+
 # Define the DAG
 dag = DAG(
     'fraud_detection_pipeline_k8s',
     default_args=default_args,
     description='End-to-end fraud detection pipeline (Kubernetes)',
     schedule_interval=None,
-    start_date=days_ago(1),
+    start_date=days_ago(1), #moving start date to yesterday to avoid scheduling issues
     catchup=False,
     tags=['fraud-detection', 'machine-learning', 'kubernetes'],
 )
@@ -160,7 +178,7 @@ model_training_task = KubernetesPodOperator(
     volumes=[volume, mlflow_volume],  # Mount both data and mlflow PVCs
     volume_mounts=[volume_mount, mlflow_volume_mount],  # Mount both volumes
     security_context=security_context,
-    init_containers=[init_container],
+    init_containers=[training_init_container],  # Also fixes /mlflow ownership
     env_vars=[
         k8s.V1EnvVar(name='MLFLOW_TRACKING_URI', value='http://mlflow-service.airflow.svc.cluster.local:5000'),
     ],

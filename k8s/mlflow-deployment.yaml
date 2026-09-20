@@ -27,10 +27,28 @@ spec:
       labels:
         app: mlflow
     spec:
+      # Run as the Airflow uid so the training task pod (uid 50000, non-proxied
+      # artifact root) can write into /mlflow/artifacts alongside the server.
+      securityContext:
+        runAsUser: 50000
+        runAsGroup: 50000
+        fsGroup: 50000
+      initContainers:
+      - name: fix-permissions
+        image: busybox:latest
+        command: ["sh", "-c", "mkdir -p /mlflow/artifacts && chown -R 50000:50000 /mlflow && chmod -R 775 /mlflow"]
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: mlflow-data
+          mountPath: /mlflow
       containers:
       - name: mlflow
         image: mlflow-server:v1
         imagePullPolicy: IfNotPresent
+        env:
+        - name: HOME
+          value: /tmp
         ports:
         - containerPort: 5000
         volumeMounts:
