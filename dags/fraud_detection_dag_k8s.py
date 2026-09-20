@@ -84,15 +84,27 @@ training_init_container = k8s.V1Container(
 )
 
 # Define the DAG
+# dag = DAG(
+#     'fraud_detection_pipeline_k8s',
+#     default_args=default_args,
+#     description='End-to-end fraud detection pipeline (Kubernetes)',
+#     schedule_interval=None,
+#     start_date=days_ago(1), #moving start date to yesterday to avoid scheduling issues
+#     catchup=False,
+#     tags=['fraud-detection', 'machine-learning', 'kubernetes'],
+# )
+#one with scheduler interval
 dag = DAG(
     'fraud_detection_pipeline_k8s',
     default_args=default_args,
-    description='End-to-end fraud detection pipeline (Kubernetes)',
-    schedule_interval=None,
-    start_date=days_ago(1), #moving start date to yesterday to avoid scheduling issues
-    catchup=False,
+    description='Scheduled retraining: runs only when new raw data has landed',
+    schedule='@weekly',                 # or a cron string, e.g. '0 2 * * 1'
+    start_date=datetime(2026, 1, 1),    # fixed date, not days_ago()
+    catchup=False, #means only the latest scheduled run is executed, not all missed runs
+    max_active_runs=1,                  # never overlap two trainings on the same PVC
     tags=['fraud-detection', 'machine-learning', 'kubernetes'],
 )
+
 
 # Task 1: Setup
 setup_task = KubernetesPodOperator(
@@ -187,5 +199,37 @@ model_training_task = KubernetesPodOperator(
     dag=dag,
 )
 
-# Define task dependencies
-setup_task >> data_ingestion_task >> data_cleaning_task >> feature_engineering_task >> model_training_task
+check_new_data_task = KubernetesPodOperator(
+    task_id='check_new_data',
+    name='check-new-data',
+    namespace=NAMESPACE,
+    image=IMAGE,
+    image_pull_policy='IfNotPresent',
+    cmds=['python3'],
+    arguments=['/opt/airflow/scripts/check_new_data.py'],
+    skip_on_exit_code=99,               # exit 99 => task "skipped", downstream skipped too
+    volumes=[volume], volume_mounts=[volume_mount],
+    security_context=security_context, init_containers=[init_container],
+    get_logs=True, is_delete_operator_pod=False, dag=dag,
+)
+
+mark_processed_task = KubernetesPodOperator(
+    task_id='mark_data_processed',
+    name='mark-data-processed',
+    namespace=NAMESPACE,
+    image=IMAGE,
+    image_pull_policy='IfNotPresent',
+    cmds=['python3'],
+    arguments=['/opt/airflow/scripts/check_new_data.py', '--commit'],
+    volumes=[volume], volume_mounts=[volume_mount],
+    security_context=security_context, init_containers=[init_container],
+    get_logs=True, is_delete_operator_pod=False, dag=dag,
+)
+
+
+# # Define task dependencies
+# setup_task >> data_ingestion_task >> data_cleaning_task >> feature_engineering_task >> model_training_task
+
+#new for conditional execution: check for new data first, then run the rest of the pipeline only if new data is detected
+check_new_data_task >> setup_task >> data_ingestion_task >> data_cleaning_task \
+    >> feature_engineering_task >> model_training_task >> mark_processed_task

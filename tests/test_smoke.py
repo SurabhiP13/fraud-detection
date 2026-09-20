@@ -132,3 +132,69 @@ def test_data_cleaning_local_fallback_finds_latest_ingestion(tmp_path: Path):
     manifest = json.loads(Path(out["manifest_path"]).read_text())
     assert "/ingestion/first/" in manifest["inputs"]["train_path"]
     assert Path(out["train_path"]).exists()
+
+
+def test_k8s_retraining_dag_has_a_real_schedule():
+    """Regression test: this is the scheduled-retraining DAG (see check_new_data.py
+    for the data-changed gate). If schedule/schedule_interval regresses to None,
+    Airflow never triggers it on its own and it silently goes back to being a
+    manually-clicked training script."""
+    dag_file = REPO / "dags" / "fraud_detection_dag_k8s.py"
+    tree = ast.parse(dag_file.read_text(), filename=str(dag_file))
+
+    dag_calls = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "DAG"
+    ]
+    assert dag_calls, f"no DAG(...) call found in {dag_file.name}"
+
+    schedule_kwargs = [
+        kw for call in dag_calls for kw in call.keywords
+        if kw.arg in ("schedule", "schedule_interval")
+    ]
+    assert schedule_kwargs, f"{dag_file.name}: DAG(...) call has no schedule/schedule_interval kwarg"
+    for kw in schedule_kwargs:
+        is_none_literal = isinstance(kw.value, ast.Constant) and kw.value.value is None
+        assert not is_none_literal, f"{dag_file.name}: schedule is None -- DAG never runs on its own"
+
+
+def _write_smoke_raw_csvs(raw_dir: Path):
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("train_transaction.csv", "train_identity.csv", "test_transaction.csv", "test_identity.csv"):
+        (raw_dir / name).write_text("TransactionID,isFraud\n1,0\n")
+
+
+def test_check_new_data_detects_new_and_unchanged_data(tmp_path: Path, monkeypatch):
+    import check_new_data
+
+    raw_dir = tmp_path / "unzipped"
+    state_file = tmp_path / ".last_trained_fingerprint.json"
+    _write_smoke_raw_csvs(raw_dir)
+
+    monkeypatch.setattr(check_new_data, "RAW_DIR", raw_dir)
+    monkeypatch.setattr(check_new_data, "STATE", state_file)
+
+    # First run: no prior fingerprint saved yet -> proceed.
+    monkeypatch.setattr(sys, "argv", ["check_new_data.py"])
+    assert check_new_data.main() == 0
+
+    # Commit the fingerprint (as the DAG does after a successful training run),
+    # then check again with nothing changed -> skip.
+    monkeypatch.setattr(sys, "argv", ["check_new_data.py", "--commit"])
+    assert check_new_data.main() == 0
+    assert state_file.exists()
+
+    monkeypatch.setattr(sys, "argv", ["check_new_data.py"])
+    assert check_new_data.main() == check_new_data.SKIP_CODE
+
+    # Touching a raw file (mtime change, same content) counts as new data.
+    target = raw_dir / "train_transaction.csv"
+    old_mtime = target.stat().st_mtime
+    os.utime(target, (old_mtime + 5, old_mtime + 5))
+    assert check_new_data.main() == 0
+
+    # A missing raw file must fail hard, not be mistaken for "skip".
+    target.unlink()
+    with pytest.raises(SystemExit) as exc_info:
+        check_new_data.main()
+    assert exc_info.value.code not in (0, check_new_data.SKIP_CODE)

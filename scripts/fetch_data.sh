@@ -53,8 +53,14 @@ elif [[ -f "$DATA_DIR/train_transaction.csv" ]]; then
   echo "✓ Raw data already present in $DATA_DIR, skipping download"
 else
   command -v kaggle >/dev/null || { echo "kaggle CLI not found (uv tool install kaggle)" >&2; exit 1; }
-  [[ -f "$HOME/.kaggle/kaggle.json" ]] || { echo "Missing ~/.kaggle/kaggle.json — see header" >&2; exit 1; }
-  chmod 600 "$HOME/.kaggle/kaggle.json"
+  # Either a legacy API key (kaggle.json) or an OAuth session (kaggle auth login,
+  # cached in credentials.json) is enough -- the CLI supports both.
+  if [[ -f "$HOME/.kaggle/kaggle.json" ]]; then
+    chmod 600 "$HOME/.kaggle/kaggle.json"
+  elif [[ ! -f "$HOME/.kaggle/credentials.json" ]]; then
+    echo "Not authenticated with Kaggle — run 'kaggle auth login' or see the header for a kaggle.json token" >&2
+    exit 1
+  fi
 
   mkdir -p "$DATA_DIR"
   echo "Downloading $COMPETITION (~1.2 GB)..."
